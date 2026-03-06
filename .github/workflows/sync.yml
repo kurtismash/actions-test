@@ -28,6 +28,10 @@ jobs:
             https://api.github.com/repos/kurtismash2/test
       
       - name: Push to target repo
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git remote add target https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/kurtismash2/test.git
+          git config --local http.https://github.com/kurtismash2/test.git.extraheader \
+            "Authorization: basic $(echo -n "x-access-token:${TOKEN}" | base64)"
+          git remote add target https://github.com/kurtismash2/test.git
           git push target main
