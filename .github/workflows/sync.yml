@@ -14,18 +14,16 @@ jobs:
           private-key: ${{ secrets.SYNC_APP_PRIVATE_KEY }}
           repositories: test
           owner: kurtismash2
+
       - name: Checkout source repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetches full history, important for syncing all branches/tags
-      - name: Debug - verify token can see target repo
-        env:
-          TOKEN: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+          fetch-tags: true
+  
+      - name: Fetch all branches
         run: |
-          curl -s -o /dev/null -w "HTTP status: %{http_code}" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/kurtismash2/test
+          git fetch --all
       
       - name: Push to target repo
         env:
@@ -33,6 +31,7 @@ jobs:
         run: |
           # Remove the credential helper set by actions/checkout
           git config --unset-all http.https://github.com/.extraheader || true
-    
+          
           git remote add target https://x-access-token:${TOKEN}@github.com/kurtismash2/test.git
-          git push target main
+          git push target --all   # pushes all branches
+          git push target --tags  # pushes all tags
