@@ -18,6 +18,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetches full history, important for syncing all branches/tags
+      - name: Debug - verify token can see target repo
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          curl -s -o /dev/null -w "HTTP status: %{http_code}" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/kurtismash2/test
       
       - name: Push to target repo
         run: |
