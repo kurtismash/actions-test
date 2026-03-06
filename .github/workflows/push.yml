@@ -1,4 +1,4 @@
-name: TFLint
+name: On push
 
 on:
   push:
