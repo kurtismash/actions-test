@@ -31,7 +31,8 @@ jobs:
         env:
           TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          git config --local http.https://github.com/kurtismash2/test.git.extraheader \
-            "Authorization: basic $(echo -n "x-access-token:${TOKEN}" | base64)"
-          git remote add target https://github.com/kurtismash2/test.git
+          # Remove the credential helper set by actions/checkout
+          git config --unset-all http.https://github.com/.extraheader || true
+    
+          git remote add target https://x-access-token:${TOKEN}@github.com/kurtismash2/test.git
           git push target main
