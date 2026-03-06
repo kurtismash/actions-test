@@ -14,6 +14,10 @@ jobs:
           private-key: ${{ secrets.SYNC_APP_PRIVATE_KEY }}
           repositories: test
           owner: kurtismash2
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetches full history, important for syncing all branches/tags
       
       - name: Push to target repo
         run: |
