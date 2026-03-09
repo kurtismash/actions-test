@@ -21,11 +21,11 @@ jobs:
       - name: Clone whole repo
         run: |
           git clone --bare https://github.com/kurtismash/actions-test.git
-          cd actions-test.git
         
       
       - name: Push to target repo
         env:
           TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          cd actions-test.git
           git push --mirror https://x-access-token:${TOKEN}@github.com/kurtismash2/test.git
