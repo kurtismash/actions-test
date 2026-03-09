@@ -19,7 +19,10 @@ jobs:
           owner: kurtismash2
 
       - name: debug
-        run: git clone --bare https://github.com/kurtismash/actions-test
+        run: |
+          git clone --bare https://github.com/kurtismash/actions-test.git
+          cd actions-test
+        
       
       - name: Push to target repo
         env:
