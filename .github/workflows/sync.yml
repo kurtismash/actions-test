@@ -17,15 +17,13 @@ jobs:
           private-key: ${{ secrets.SYNC_APP_PRIVATE_KEY }}
           repositories: test
           owner: kurtismash2
+          permission-contents: write
+          permission-workflows: write
 
-      - name: Clone whole repo
-        run: |
-          git clone --bare https://github.com/kurtismash/actions-test.git
-        
-      
-      - name: Push to target repo
+      - name: Sync to target repo
         env:
           TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
+          git clone --bare https://github.com/kurtismash/actions-test.git
           cd actions-test.git
           git push --mirror https://x-access-token:${TOKEN}@github.com/kurtismash2/test.git
