@@ -18,15 +18,8 @@ jobs:
           repositories: test
           owner: kurtismash2
 
-      - name: Checkout source repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-          persist-credentials: false
-
       - name: debug
-        run: git branch
+        run: git clone --bare https://github.com/kurtismash/actions-test
       
       - name: Push to target repo
         env:
