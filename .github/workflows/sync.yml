@@ -33,5 +33,4 @@ jobs:
           TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           git remote add target https://x-access-token:${TOKEN}@github.com/kurtismash2/test.git
-          git push target --branches   # pushes all branches
-          git push target --tags  # pushes all tags
+          git push target --mirror
