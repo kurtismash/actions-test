@@ -18,10 +18,10 @@ jobs:
           repositories: test
           owner: kurtismash2
 
-      - name: debug
+      - name: Clone whole repo
         run: |
           git clone --bare https://github.com/kurtismash/actions-test.git
-          cd actions-test
+          cd actions-test.git
         
       
       - name: Push to target repo
