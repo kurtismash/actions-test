@@ -2,6 +2,8 @@ name: Sync to another org
 on:
   workflow_call:
   workflow_dispatch:
+  push:
+    branches: main
 
 jobs:
   sync:
@@ -22,6 +24,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           persist-credentials: false
+
+      - name: debug
+        run: git branch
       
       - name: Push to target repo
         env:
