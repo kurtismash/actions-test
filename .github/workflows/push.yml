@@ -5,7 +5,7 @@ on:
 
 jobs:
   validate_commit_shas:
-    uses: kurtismash/commit-sha-validator@main
+    uses: kurtismash/commit-sha-validator@master
   hello_world:
     runs-on: ubuntu-latest
     steps:
