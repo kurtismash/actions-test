@@ -4,8 +4,6 @@ on:
   push:
 
 jobs:
-  validate_commit_shas:
-    
   hello_world:
     runs-on: ubuntu-latest
     steps:
