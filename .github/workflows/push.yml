@@ -4,6 +4,8 @@ on:
   push:
 
 jobs:
+  validate_commit_shas:
+    uses: kurtismash/commit-sha-validator
   hello_world:
     runs-on: ubuntu-latest
     steps:
