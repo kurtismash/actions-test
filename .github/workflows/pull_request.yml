@@ -10,7 +10,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -37,12 +37,20 @@ jobs:
             echo "has_relevant_files=false" >> "$GITHUB_OUTPUT"
             echo "No workflow, action, or dependabot files changed — skipping zizmor."
           fi
-      - name: Install the latest version of uv
+      - name: Install zizmor
         if: steps.calculate_changes.outputs.has_relevant_files == 'true'
-        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7.3.1
+        env:
+          ZIZMOR_VERSION: "1.23.1"
+          ZIZMOR_SHA256: "67a8df0a14352dd81882e14876653d097b99b0f4f6b6fe798edc0320cff27aff"
+        run: |
+          set -euo pipefail
+          curl -sL "https://github.com/zizmorcore/zizmor/releases/download/v${ZIZMOR_VERSION}/zizmor-x86_64-unknown-linux-gnu.tar.gz" -o zizmor.tar.gz
+          echo "${ZIZMOR_SHA256}  zizmor.tar.gz" | sha256sum -c -
+          tar -xzf zizmor.tar.gz
+          chmod +x zizmor
       - name: Run zizmor 🌈
         if: steps.calculate_changes.outputs.has_relevant_files == 'true'
-        run: xargs uvx zizmor --format=github < relevant_files.txt > zizmor-output.txt || true
+        run: xargs ./zizmor --format=github < relevant_files.txt > zizmor-output.txt || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Filter findings to PR changed lines
