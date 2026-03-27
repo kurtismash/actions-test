@@ -24,7 +24,7 @@ jobs:
           set -euo pipefail
 
           # Get changed files
-          git diff --name-only --no-color "$BASE_SHA" "$HEAD_SHA" > changed_files.txt
+          git diff --name-only --no-color "$BASE_SHA"..."$HEAD_SHA" > changed_files.txt
 
           # Filter to files relevant to zizmor
           grep -E '(\.github/workflows/[^/]+\.(yml|yaml)$|(^|/)(action|dependabot)\.(yml|yaml)$)' changed_files.txt > relevant_files.txt || true
@@ -114,4 +114,19 @@ jobs:
           ' changed_ranges.tsv zizmor-output.txt > zizmor-output-pr.txt
 
           echo "Filtered findings (changed lines only):"
+          stopMarker=$(uuidgen)
+          echo "::stop-commands::$stopMarker"
           cat zizmor-output-pr.txt || true
+          echo "::$stopMarker::"
+      - name: Improve annotation messages
+        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Replace the title with a link to the zizmor audit docs
+          sed -E 's|title=([a-zA-Z0-9_-]+)::|title=[\1](https://docs.zizmor.sh/audits/#\1)::|g' \
+            zizmor-output-pr.txt > zizmor-annotated.txt
+
+          # Emit the annotations
+          cat zizmor-annotated.txt
