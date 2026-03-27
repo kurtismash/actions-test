@@ -20,32 +20,72 @@ jobs:
         run: uvx zizmor --format=github . > zizmor-output.txt || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Filter findings to PR diff
+      - name: Filter findings to PR changed lines
+        shell: bash
+        env:
+          BASE_SHA: "${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA: "${{ github.event.pull_request.head.sha }}"
         run: |
-          # Get changed lines from the PR diff
-          git diff --unified=0 origin/${{ github.base_ref }}...HEAD | awk '
-            /^diff --git/ {
-              # extract b/path
-              match($0, /b\/(.+)/, m); file = m[1]
+          set -euo pipefail
+
+          # Build changed line ranges for the PR (new-file side).
+          # Format: file<TAB>start<TAB>end
+          git diff --no-color "$BASE_SHA" "$HEAD_SHA" \
+            | awk '
+              BEGIN { file="" }
+              /^\+\+\+ b\// { file=substr($0,7); next }   # "+++ b/path"
+              /^\+\+\+ \/dev\/null/ { file=""; next }    # deleted file => ignore
+              /^@@/ {
+                if (file=="") next
+                # Hunk header: @@ -oldStart,oldCount +newStart,newCount @@
+                if (match($0, /\+[0-9]+(,[0-9]+)?/)) {
+                  seg = substr($0, RSTART+1, RLENGTH-1)   # "newStart,newCount" (no +)
+                  n = split(seg, a, ",")
+                  start = a[1]
+                  count = (n==2 ? a[2] : 1)
+                  if (count == 0) next                    # pure deletion hunk
+                  end = start + count - 1
+                  print file "\t" start "\t" end
+                }
+              }
+            ' > changed_ranges.tsv
+
+          echo "Changed line ranges:"
+          cat changed_ranges.tsv || true
+
+          # Filter zizmor output lines to only those whose file+line is in a changed range.
+          # zizmor format example:
+          # ::warning file=.github/dependabot.yml,line=3,title=...::...
+          awk -F'\t' '
+            FNR==NR {
+              ranges[$1] = ranges[$1] $2 "-" $3 ","
+              next
             }
-            /^@@ / {
-              # parse @@ -old +new,count @@ — we care about the + side
-              split($3, a, /[,+]/)
-              start = a[2] + 0
-              count = (a[3] == "" ? 1 : a[3] + 0)
-              for (i = start; i < start + count; i++) {
-                print file ":" i
+            {
+              msg = $0
+              file = ""; line = ""
+
+              # Extract file and line from the GitHub Actions annotation prefix
+              if (match(msg, /file=([^,]+),line=([0-9]+)/, m)) {
+                file = m[1]
+                line = m[2] + 0
+              } else {
+                next
+              }
+
+              r = ranges[file]
+              if (r == "") next
+
+              n = split(r, parts, ",")
+              for (i=1; i<=n; i++) {
+                if (parts[i] == "") continue
+                split(parts[i], se, "-")
+                s = se[1] + 0
+                e = se[2] + 0
+                if (line >= s && line <= e) { print msg; break }
               }
             }
-          ' > changed-lines.txt
+          ' changed_ranges.tsv zizmor-output.txt > zizmor-output-pr.txt
 
-          # Filter zizmor output: emit only annotations whose file:line is in the diff
-          while IFS= read -r line; do
-            if [[ "$line" =~ ^::.*file=([^,]+),line=([0-9]+) ]]; then
-              file="${BASH_REMATCH[1]}"
-              lineno="${BASH_REMATCH[2]}"
-              if grep -qxF "${file}:${lineno}" changed-lines.txt; then
-                echo "$line"
-              fi
-            fi
-          done < zizmor-output.txt
+          echo "Filtered findings (changed lines only):"
+          cat zizmor-output-pr.txt || true
