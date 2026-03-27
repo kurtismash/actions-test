@@ -48,6 +48,9 @@ jobs:
       - name: Filter findings to PR changed lines
         if: steps.calculate_changes.outputs.has_relevant_files == 'true'
         shell: bash
+        env:
+          BASE_SHA: "${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA: "${{ github.event.pull_request.head.sha }}"
         run: |
           set -euo pipefail
 
