@@ -1,10 +1,10 @@
-name: zizmor 🌈
+name: Security Tooling
 on:
   pull_request:
 
 jobs:
   zizmor:
-    name: Scan
+    name: Scan GitHub Actions with zizmor 🌈
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -15,8 +15,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Calculate changes
-        id: calculate_changes
+      - name: Get changed files
+        id: get_changed_files
         shell: bash
         env:
           BASE_SHA: "${{ github.event.pull_request.base.sha }}"
@@ -39,7 +39,7 @@ jobs:
             echo "No workflow, action, or dependabot files changed — skipping zizmor."
           fi
       - name: Install zizmor
-        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        if: steps.get_changed_files.outputs.has_relevant_files == 'true'
         env:
           ZIZMOR_VERSION: "1.23.1"
           ZIZMOR_SHA256: "67a8df0a14352dd81882e14876653d097b99b0f4f6b6fe798edc0320cff27aff"
@@ -50,12 +50,13 @@ jobs:
           tar -xzf zizmor.tar.gz
           chmod +x zizmor
       - name: Run zizmor 🌈
-        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
-        run: xargs ./zizmor --format=github < relevant_files.txt > zizmor-output.txt || true
+        if: steps.get_changed_files.outputs.has_relevant_files == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          xargs ./zizmor --format=github < relevant_files.txt > zizmor-output.txt || true
       - name: Filter findings to PR changed lines
-        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        if: steps.get_changed_files.outputs.has_relevant_files == 'true'
         shell: bash
         env:
           BASE_SHA: "${{ github.event.pull_request.base.sha }}"
@@ -65,7 +66,7 @@ jobs:
 
           # Build changed line ranges for the PR (new-file side).
           # Format: file<TAB>start<TAB>end
-          git diff --no-color "$BASE_SHA" "$HEAD_SHA" \
+          git diff --no-color "$BASE_SHA"..."$HEAD_SHA" \
             | awk '
               BEGIN { file="" }
               /^\+\+\+ b\// { file=substr($0,7); next }   # "+++ b/path"
@@ -128,7 +129,7 @@ jobs:
           cat zizmor-output-pr.txt || true
           echo "::$stopMarker::"
       - name: Improve annotation messages
-        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        if: steps.get_changed_files.outputs.has_relevant_files == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -143,7 +144,7 @@ jobs:
           # Emit the annotations
           cat zizmor-annotated.txt
       - name: Create workflow summary
-        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        if: steps.get_changed_files.outputs.has_relevant_files == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -166,7 +167,7 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Comment on PR if too many findings
-        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        if: steps.get_changed_files.outputs.has_relevant_files == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -175,7 +176,36 @@ jobs:
 
           count=$(wc -l < zizmor-output-pr.txt | tr -d ' ')
           if [ "$count" -gt 10 ]; then
+            # Hide (minimize) any previous zizmor comments on this PR
+            gh api graphql -f query='
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    comments(first: 100) {
+                      nodes {
+                        id
+                        body
+                        isMinimized
+                      }
+                    }
+                  }
+                }
+              }
+            ' -f owner='${{ github.repository_owner }}' \
+              -f repo='${{ github.event.repository.name }}' \
+              -F number='${{ github.event.pull_request.number }}' \
+              --jq '.data.repository.pullRequest.comments.nodes[] | select(.body | startswith("zizmor ")) | select(.isMinimized == false) | .id' \
+            | while IFS= read -r node_id; do
+                gh api graphql -f query='
+                  mutation($id: ID!) {
+                    minimizeComment(input: {subjectId: $id, classifier: OUTDATED}) {
+                      minimizedComment { isMinimized }
+                    }
+                  }
+                ' -f id="$node_id"
+              done
+
             run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             gh pr comment "${{ github.event.pull_request.number }}" \
-              --body "zizmor 🌈 found more than 10 issues, these will not all display through the GitHub UI. Please see ${run_url} for all findings."
+              --body "zizmor 🌈 identified **$count** findings, these will not all display through the GitHub UI. Please see ${run_url} for all findings."
           fi
