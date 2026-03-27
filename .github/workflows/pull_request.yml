@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -141,3 +142,40 @@ jobs:
 
           # Emit the annotations
           cat zizmor-annotated.txt
+      - name: Create workflow summary
+        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          count=$(wc -l < zizmor-output-pr.txt | tr -d ' ')
+
+          {
+            echo "## zizmor 🌈"
+            echo ""
+            if [ "$count" -eq 0 ]; then
+              echo "No findings on changed lines."
+            else
+              echo "Found **${count}** finding(s) on changed lines."
+              echo ""
+              echo "| Severity | File | Line | Audit | Message |"
+              echo "|----------|------|------|-------|---------|"
+              # Parse each annotation line
+              sed -n 's/^::\([a-z]*\) file=\([^,]*\),line=\([0-9]*\),title=\([a-zA-Z0-9_-]*\)::\(.*\)/| \1 | `\2` | \3 | [\4](https:\/\/docs.zizmor.sh\/audits\/#\4) | \5 |/p' \
+                zizmor-output-pr.txt
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Comment on PR if too many findings
+        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          count=$(wc -l < zizmor-output-pr.txt | tr -d ' ')
+          if [ "$count" -gt 10 ]; then
+            run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            gh pr comment "${{ github.event.pull_request.number }}" \
+              --body "zizmor 🌈 found more than 10 issues, these will not all display through the GitHub UI. Please see ${run_url} for all findings."
+          fi
