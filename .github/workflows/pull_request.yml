@@ -4,7 +4,7 @@ on:
 
 jobs:
   zizmor:
-    name: Scan repository with zizmor 🌈
+    name: Scan
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -14,17 +14,36 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7.3.1
-      - name: Run zizmor 🌈
-        run: uvx zizmor --format=github . > zizmor-output.txt || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Filter findings to PR changed lines
+      - name: Calculate changes
+        id: calculate_changes
         shell: bash
         env:
           BASE_SHA: "${{ github.event.pull_request.base.sha }}"
           HEAD_SHA: "${{ github.event.pull_request.head.sha }}"
+        run: |
+          set -euo pipefail
+
+          # Get changed files
+          git diff --name-only --no-color "$BASE_SHA" "$HEAD_SHA" > changed_files.txt
+
+          # Check whether any changed file is relevant to zizmor
+          if grep -qE '(\.github/workflows/[^/]+\.(yml|yaml)$|(^|/)(action|dependabot)\.(yml|yaml)$)' changed_files.txt; then
+            echo "has_relevant_files=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_relevant_files=false" >> "$GITHUB_OUTPUT"
+            echo "No workflow, action, or dependabot files changed — skipping zizmor."
+          fi
+      - name: Install the latest version of uv
+        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7.3.1
+      - name: Run zizmor 🌈
+        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        run: uvx zizmor --format=github . > zizmor-output.txt || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Filter findings to PR changed lines
+        if: steps.calculate_changes.outputs.has_relevant_files == 'true'
+        shell: bash
         run: |
           set -euo pipefail
 
