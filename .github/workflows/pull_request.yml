@@ -26,9 +26,13 @@ jobs:
           # Get changed files
           git diff --name-only --no-color "$BASE_SHA" "$HEAD_SHA" > changed_files.txt
 
-          # Check whether any changed file is relevant to zizmor
-          if grep -qE '(\.github/workflows/[^/]+\.(yml|yaml)$|(^|/)(action|dependabot)\.(yml|yaml)$)' changed_files.txt; then
+          # Filter to files relevant to zizmor
+          grep -E '(\.github/workflows/[^/]+\.(yml|yaml)$|(^|/)(action|dependabot)\.(yml|yaml)$)' changed_files.txt > relevant_files.txt || true
+
+          if [ -s relevant_files.txt ]; then
             echo "has_relevant_files=true" >> "$GITHUB_OUTPUT"
+            echo "Relevant files:"
+            cat relevant_files.txt
           else
             echo "has_relevant_files=false" >> "$GITHUB_OUTPUT"
             echo "No workflow, action, or dependabot files changed — skipping zizmor."
@@ -38,7 +42,7 @@ jobs:
         uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # v7.3.1
       - name: Run zizmor 🌈
         if: steps.calculate_changes.outputs.has_relevant_files == 'true'
-        run: uvx zizmor --format=github . > zizmor-output.txt || true
+        run: xargs uvx zizmor --format=github < relevant_files.txt > zizmor-output.txt || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Filter findings to PR changed lines
