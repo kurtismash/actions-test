@@ -1,6 +1,5 @@
 name: Security Tooling
 on:
-  pull_request:
 
 jobs:
   zizmor:
