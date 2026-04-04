@@ -2,10 +2,13 @@ name: On push
 
 on:
   push:
+  pull_request: 
 
 jobs:
   hello_world:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: kurtismash/commit-sha-validator@master
       - name: Hello world
         run: echo "Hello world"
