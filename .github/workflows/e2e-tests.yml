@@ -1,0 +1,40 @@
+name: Run DR2 Ingest End-to-End Tests
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: write
+jobs:
+  run_tests:
+    runs-on: ubuntu-latest
+    environment: intg
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: sbt/setup-sbt@6bec67c98f542b9e17369bfca0ec822ac1363194 # v1.1.19
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Configure AWS credentials for Lambda
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        with:
+          role-duration-seconds: 7200
+          role-to-assume: arn:aws:iam::${{ secrets.ACCOUNT_NUMBER }}:role/intg-dr2-run-e2e-tests-role
+          aws-region: eu-west-2
+          role-session-name: RunE2ETestsRole
+      - run: |
+          cd kotlin/e2e-tests/e2etests/
+          gradle test
+        env:
+          INGEST_SQS_QUEUE: https://sqs.eu-west-2.amazonaws.com/${{ secrets.ACCOUNT_NUMBER }}/intg-dr2-preingest-tdr-importer
+          EXTERNAL_LOG_GROUP: arn:aws:logs:eu-west-2:${{ secrets.ACCOUNT_NUMBER }}:log-group:/intg-external-notifications
+          PREINGEST_SFN_ARN: arn:aws:states:eu-west-2:${{ secrets.ACCOUNT_NUMBER }}:stateMachine:intg-dr2-preingest-tdr
+          COPY_FILES_LOG_GROUP: arn:aws:logs:eu-west-2:${{ secrets.ACCOUNT_NUMBER }}:log-group:/aws/lambda/intg-dr2-preingest-tdr-importer
+          JUDGMENT_SQS_QUEUE: https://sqs.eu-west-2.amazonaws.com/${{ secrets.ACCOUNT_NUMBER }}/intg-dr2-preingest-courtdoc-importer

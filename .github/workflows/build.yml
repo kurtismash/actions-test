@@ -1,0 +1,61 @@
+name: DR2 Build Project
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+permissions:
+  id-token: write
+  contents: write
+jobs:
+  pre-deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      next-version: ${{ steps.next-tag.outputs.next-version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: sbt/setup-sbt@6bec67c98f542b9e17369bfca0ec822ac1363194 # v1.1.19
+      - name: Configure AWS credentials from management account
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.MANAGEMENT_ACCOUNT }}:role/MgmtDPGithubCodeDeploy
+          aws-region: eu-west-2
+          role-session-name: GitHubActionsRole
+      - id: next-tag
+        run: echo next-version=$(curl -s $GITHUB_API_URL/repos/nationalarchives/dr2-ingest/tags | jq -r '.[0].name' | awk -F. -v OFS=. '{ $3++; print }') >> "$GITHUB_OUTPUT"
+      - run: |
+          rm -rf target/outputs
+          mkdir -p target/outputs
+          sbt ingestLambdasRoot/assembly
+          (cd ./python/lambdas/preingest-importer/ && bash deploy.sh)
+          zip -jA preingest-tdr-importer python/lambdas/preingest-importer/lambda_function.py
+          cp preingest-tdr-importer target/outputs
+          cp preingest-tdr-importer target/outputs/preingest-dri-importer
+          cp preingest-tdr-importer target/outputs/preingest-adhoc-importer
+          cp preingest-tdr-importer target/outputs/preingest-restore-importer
+          zip -jA ingest-metric-collector python/lambdas/ingest-metric-collector/ingest_metric_collector.py
+          zip -jA pause-ingest python/lambdas/pause-ingest/pause_ingest.py
+          zip -jA pause-preservica-activity python/lambdas/pause-preservica-activity/pause_preservica_activity.py
+          zip -jA ip-lock-checker python/lambdas/ip-lock-checker/ip_lock_checker.py
+          cp ingest-metric-collector target/outputs
+          cp pause-ingest target/outputs
+          cp pause-preservica-activity target/outputs
+          cp ip-lock-checker target/outputs
+          pip install cargo-lambda
+          (cd rust/lambdas/courtdoc-anonymiser && cargo lambda build --release -p lambda)
+          zip -jA court-document-package-anonymiser rust/lambdas/courtdoc-anonymiser/target/lambda/lambda/bootstrap
+          cp court-document-package-anonymiser target/outputs
+          cd target/outputs
+          aws s3 sync . s3://mgmt-dp-code-deploy/${{ steps.next-tag.outputs.next-version }}/
+          git tag ${{ steps.next-tag.outputs.next-version }}
+          git push origin ${{ steps.next-tag.outputs.next-version }}
+  deploy:
+    needs: pre-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - run: gh workflow run deploy.yml -f environment=intg -f to-deploy=${{ needs.pre-deploy.outputs.next-version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
