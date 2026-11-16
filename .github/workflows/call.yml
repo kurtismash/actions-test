@@ -1,0 +1,12 @@
+name: On push
+
+on:
+  workflow_dispatch:
+
+jobs:
+  one:
+    uses: kurtismash/actions-test/.github/workflows/reuse.yml@main
+    with:
+      value: $VALUE2
+    secrets:
+      VALUE2: "hello world"
