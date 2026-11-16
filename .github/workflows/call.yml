@@ -4,9 +4,12 @@ on:
   workflow_dispatch:
 
 jobs:
+  two:
+    steps:
+      run: echo "VALUE=$VALUE" >> $GITHUBENV
   one:
     uses: kurtismash/actions-test/.github/workflows/reuse.yml@main
     with:
-      value: $VALUE2
+      value: ${{vars.myvar}}
     secrets:
       VALUE2: "hello world"
